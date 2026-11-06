@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Better Branching — Cute chat history</title>
+<style>
+:root { color-scheme:dark; --SmartThemeBodyColor:#dcdcd2; --SmartThemeEmColor:#aaa; --SmartThemeQuoteColor:#e18a24; --SmartThemeBlurTintColor:#171717; --SmartThemeChatTintColor:#202020; --SmartThemeBorderColor:#454540; --SmartThemeShadowColor:#0008; --white30a:#ffffff30; --cobalt30a:#0047ab4d; }
+* { box-sizing:border-box; } body { margin:0; background:#101010; color:var(--SmartThemeBodyColor); font:15px/1.5 system-ui,sans-serif; } main { max-width:740px; margin:30px auto; padding:0 16px; } .demo-note { font-size:.85rem; } #select_chat_popup { display:flex; flex-direction:column; max-height:82vh; background:var(--SmartThemeBlurTintColor); border:1px solid var(--SmartThemeBorderColor); overflow:hidden; } .preview-header { display:flex; align-items:center; gap:12px; } .preview-header h1 { flex:1; font-size:19px; margin:0; } .text_pole,.menu_button { background:var(--SmartThemeChatTintColor); color:inherit; border:1px solid var(--SmartThemeBorderColor); padding:8px 12px; font:inherit; } #select_chat_search { width:100%; margin:14px 0 6px; } #select_chat_div { overflow:auto; min-height:0; } .flex-container { display:flex; flex-wrap:wrap; gap:8px; } .wide100p { width:100%; } .justifySpaceBetween { justify-content:space-between; } .alignitemscenter { align-items:center; } .select_chat_block { cursor:pointer; } .select_chat_block_mes { width:100%; } .select_chat_actions { margin-inline-start:auto; } .template_element { display:none; } .opacity50p { opacity:.5; } .preview-header button { color:inherit; cursor:pointer; } .preview-close { background:none; border:0; padding:8px; }
+@font-face { font-family:'Font Awesome 6 Free'; font-style:normal; font-weight:900; src:url('/webfonts/fa-solid-900.woff2') format('woff2'); }
+.fa-solid { font-family:'Font Awesome 6 Free'; font-weight:900; font-style:normal; } .fa-pencil::before { content:'\f303'; } .fa-file-export::before { content:'\f56e'; } .fa-file-lines::before { content:'\f15c'; } .fa-skull::before { content:'\f54c'; } .fa-chevron-down::before { content:'\f078'; } .fa-chevron-right::before { content:'\f054'; } .fa-xmark::before { content:'\f00d'; } .fa-file-import::before { content:'\f56f'; }
+@media(max-width:600px) { main { margin:12px auto; padding:0 8px; } }
+</style>
+<style>
+.preview-header { flex-wrap:wrap; gap:10px; }
+#selectChatPopupHeaderText { display:flex; align-items:center; gap:8px; margin-right:auto; font-size:19px; font-weight:650; }
+.notes-link { color:inherit; font-size:14px; }
+.menu_button_icon { display:inline-flex; align-items:center; gap:7px; cursor:pointer; }
+.preview-header #select_chat_search { flex:1 1 180px; width:auto; margin:0; min-width:120px; }
+.fa-circle-question::before { content:'\f059'; }
+.fa-plus::before { content:'\2b'; }
+.fa-box-open::before { content:'\f49e'; }
+.fa-circle-xmark::before { content:'\f057'; }
+</style>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body><main>
+<p class="demo-note">Accepted Cute design · Synthetic preview chats</p>
+<section id="select_chat_popup">
+<header name="selectChatPopupHeader" class="preview-header">
+<div id="selectChatPopupHeaderText"><span id="ChatHistoryCharName"></span><span>Chat History</span><a href="https://docs.sillytavern.app/usage/core-concepts/chatfilemanagement/" class="notes-link" target="_blank" rel="noopener noreferrer" aria-label="Chat history documentation"><span class="fa-solid fa-circle-question note-link-span" aria-hidden="true"></span></a></div>
+<button id="newChatFromManageScreenButton" class="menu_button menu_button_icon"><i class="fa-solid fa-plus" aria-hidden="true"></i><span>New Chat</span></button>
+<button id="chat_import_button" class="menu_button menu_button_icon"><i class="fa-solid fa-file-import" aria-hidden="true"></i><span>Import Chat</span></button>
+<button class="menu_button menu_button_icon" title="Browse chat backups"><i class="fa-solid fa-box-open" aria-hidden="true"></i><span>Backups</span><i class="fa-solid fa-chevron-down" aria-hidden="true"></i></button>
+<input id="select_chat_search" class="text_pole" type="search" placeholder="Search..." aria-label="Search chats">
+<button id="select_chat_cross" class="preview-close" aria-label="Close chat history"><i class="fa-solid fa-circle-xmark" aria-hidden="true"></i></button>
+</header><div id="select_chat_div"></div></section>
+<p id="demo-feedback" role="status"></p></main>
+<div id="past_chat_template" class="template_element"><div class="select_chat_block_wrapper flex-container"><div class="select_chat_block wide100p flex-container" file_name=""><div class="flex-container alignitemscenter justifySpaceBetween wide100p"><div class="flex-container"><small class="select_chat_block_filename select_chat_block_filename_item"></small><div class="renameChatButton hoverglow opacity50p fa-solid fa-pencil" title="Rename chat file"></div></div><div class="flex-container"><div class="select_chat_info flex-container"><small class="chat_messages_date"></small><small class="chat_file_size"></small><small class="chat_messages_num"></small></div><div class="select_chat_actions flex-container"><div class="exportRawChatButton opacity50p hoverglow fa-solid fa-file-export" title="Export JSONL chat file" data-format="jsonl"></div><div class="exportChatButton opacity50p hoverglow fa-solid fa-file-lines" title="Download chat as plain text document" data-format="txt"></div><div class="PastChat_cross opacity50p hoverglow fa-solid fa-skull" title="Delete chat file"></div></div></div></div><div class="select_chat_block_mes"></div></div></div></div>
+<script>
+const chats=[['The roadside inn',null,128,'The innkeeper lowers her voice…',1],['Follow the stranger','The roadside inn',86,'A figure waits beneath the lantern.',3],['Take the forest path','Follow the stranger',94,'The trees part around a clearing.',5],['Return to the inn','Follow the stranger',72,'The door is still open.',2],['Stay for the night','The roadside inn',65,'Rain begins to fall.',0],['A different beginning',null,54,'You arrive just before sunset…',0],['Ask about the letter','A different beginning',61,'The seal is broken.',0],['Leave town','A different beginning',70,'Beyond the city walls…',0]].map(([file_name,main_chat,message_count,preview_message,day])=>({file_name,main_chat,message_count,preview_message,file_size:'48 KB',last_mes:Date.UTC(2026,10,day+1)}));
+const ctx={characters:[{avatar:'preview.png'}],characterId:0,groupId:null,chatId:'Take the forest path',getRequestHeaders:()=>({'Content-Type':'application/json'}),timestampToMoment:value=>({valueOf:()=>Number(value),format:()=>new Date(value).toLocaleDateString(undefined,{month:'short',day:'numeric'})})};
+window.SillyTavern={getContext:()=>ctx};
+const realFetch=window.fetch.bind(window);
+window.fetch=async(url,options)=>{
+ if(typeof url!=='string'||!url.startsWith('/api/chats/'))return realFetch(url,options);
+ const body=JSON.parse(options.body);
+ if(url.endsWith('/search'))return {ok:true,json:async()=>chats.map(chat=>({...chat}))};
+ const chat=chats.find(chat=>chat.file_name===body.file_name);
+ return {ok:true,json:async()=>[{chat_metadata:{main_chat:chat.main_chat}},...Array.from({length:65},(_,index)=>({mes:'Example message',extra:{branches:index===(chat.main_chat?60:41)?chats.filter(child=>child.main_chat===chat.file_name).map(child=>child.file_name):[]}}))]};
+};
+function nativeList(){
+ const query=document.querySelector('#select_chat_search').value.toLowerCase();
+ document.querySelector('#select_chat_div').replaceChildren(...chats.filter(chat=>`${chat.file_name} ${chat.preview_message}`.toLowerCase().includes(query)).map(chat=>{
+ const row=document.querySelector('#past_chat_template .select_chat_block_wrapper').cloneNode(true);
+ row.querySelector('.select_chat_block').setAttribute('file_name',chat.file_name);
+ if(chat.file_name===ctx.chatId)row.querySelector('.select_chat_block').setAttribute('highlight','true');
+ for(const [selector,text] of [['.select_chat_block_filename',chat.file_name],['.chat_messages_date',ctx.timestampToMoment(chat.last_mes).format()],['.chat_file_size',`(${chat.file_size},`],['.chat_messages_num',`${chat.message_count} 💬)`],['.select_chat_block_mes',chat.preview_message]])row.querySelector(selector).textContent=text;
+ return row;
+ }));
+}
+document.querySelector('#select_chat_search').addEventListener('input',nativeList);
+document.addEventListener('click',event=>{
+ const action=event.target.closest('.renameChatButton,.exportRawChatButton,.exportChatButton,.PastChat_cross,.preview-header button');
+ if(action){document.querySelector('#demo-feedback').textContent=`Preview only: ${action.title||action.getAttribute('aria-label')||action.textContent.trim()}`;return;}
+ const row=event.target.closest('.select_chat_block');if(row)document.querySelector('#demo-feedback').textContent=`Preview: open “${row.getAttribute('file_name')}”.`;
+});
+nativeList();
+</script><script type="module" src="/index.js"></script>
+</body></html>
