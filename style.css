@@ -1,4 +1,7 @@
 /* Accepted Cute style. All colors inherit the active SillyTavern theme. */
+#select_chat_div .bb-parent-marker { display:inline-flex; align-items:center; align-self:center; flex-shrink:0; font-size:.95em; line-height:1; color:var(--SmartThemeBodyColor); }
+#select_chat_div .bb-parent-marker + .select_chat_block_filename { align-self:center; }
+#select_chat_div .bb-parent-marker svg { width:1em; height:1em; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linejoin:round; }
 #select_chat_popup.bb-history { border-radius:24px; padding:22px; }
 #select_chat_popup.bb-history #select_chat_search,
 #select_chat_popup.bb-history .menu_button { border-radius:18px; }
@@ -42,7 +45,6 @@
     border-inline-start:1px dashed color-mix(in srgb,var(--SmartThemeBodyColor) 30%,transparent);
 }
 #select_chat_div .bb-branches[hidden] { display:none; }
-#select_chat_div .bb-branches .bb-branches .bb-branches { margin-inline-start:0; padding-inline-start:4px; }
 @media(max-width:600px) {
     #select_chat_popup.bb-history { padding:10px; }
     #select_chat_div .bb-branch-toggle { min-height:40px; }

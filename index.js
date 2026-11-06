@@ -1,4 +1,4 @@
-import { buildForest, key, sortForest, visiblePaths } from './tree.js';
+import { buildForest, key, sortForest, visibleFamilies, familyView } from './tree.js';
 import { RelationshipCache } from './relationship-cache.js';
 
 const context = () => SillyTavern.getContext();
@@ -9,6 +9,7 @@ let forest, scope = '', previousQuery = '';
 let nativeRows = new Map();
 let matches = new Set();
 const expansion = new Map();
+const representatives = new Map();
 let expanded = new Set();
 
 async function post(url, body, signal) {
@@ -27,6 +28,13 @@ function observe() {
 function scopeBody() {
     const ctx = context();
     return { avatar_url: ctx.groupId ? null : ctx.characters[ctx.characterId]?.avatar, group_id: ctx.groupId || null };
+}
+
+function revealCurrentFamily() {
+    let active = forest.nodes.get(key(context().chatId));
+    if (!active?.parent) return;
+    while (active.parent) active = active.parent;
+    expanded.add(active.id);
 }
 
 function showAvailableChats() {
@@ -50,8 +58,7 @@ function showAvailableChats() {
     }
     forest = buildForest([...chats.values()]);
     sortForest(forest.roots);
-    let active = forest.nodes.get(key(context().chatId))?.parent;
-    while (active) { expanded.add(active.id); active = active.parent; }
+    revealCurrentFamily();
     render();
 }
 
@@ -108,10 +115,9 @@ async function refresh(force) {
         // Bound retained summaries to recently visited characters/groups.
         if (summaries.size > 10) summaries.delete(summaries.keys().next().value);
         forest = buildForest(chats);
-        // Recent descendant activity promotes the entire ancestor path.
+        // The latest chat anywhere in a family promotes the original parent.
         sortForest(forest.roots);
-        let active = forest.nodes.get(key(ctx.chatId))?.parent;
-        while (active) { expanded.add(active.id); active = active.parent; }
+        revealCurrentFamily();
         render();
     } catch (error) {
         if (!signal.aborted) console.error('[Better Branching]', error);
@@ -140,40 +146,61 @@ function makeRow(node) {
 function render() {
     if (!forest) return;
     const searching = Boolean(search.value.trim());
-    const visible = searching ? visiblePaths(forest.nodes, matches) : null;
+    const visible = searching ? visibleFamilies(forest.nodes, matches) : null;
     let sequence = 0;
+    const chatRow = (chat, parent) => {
+        const row = makeRow(chat);
+        row.querySelector('.bb-parent-marker')?.remove();
+        if (chat === parent && parent.branches.length && !parent.main_chat) {
+            const marker = document.createElement('span');
+            marker.className = 'bb-parent-marker';
+            marker.title = 'Original parent chat';
+            marker.setAttribute('aria-label', 'Original parent chat');
+            marker.setAttribute('role', 'img');
+            marker.tabIndex = 0;
+            // An outlined SVG keeps the symbol independent of installed icon packs.
+            marker.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m12 3 2.8 5.7 6.3.9-4.6 4.5 1.1 6.3-5.6-3-5.6 3 1.1-6.3L2.9 9.6l6.3-.9Z"/></svg>';
+            row.querySelector('.select_chat_block_filename').before(marker);
+        }
+        return row;
+    };
     const draw = node => {
         if (visible && !visible.has(node.id)) return null;
+        const representativeKey = JSON.stringify([scope, node.id]);
+        const { representative, others } = familyView(node, representatives.get(representativeKey));
+        representatives.set(representativeKey, representative.id);
         const group = document.createElement('div');
         group.className = 'bb-group';
-        group.append(makeRow(node));
-        if (node.children.length) {
+        group.append(chatRow(representative, node));
+        const displayedOthers = others.filter(chat => !visible || visible.has(chat.id));
+        if (displayedOthers.length) {
             const children = document.createElement('div');
             children.className = 'bb-branches';
             children.id = `bb-branches-${sequence++}`;
-            const count = item => item.children.reduce((sum, child) => sum + 1 + count(child), 0);
-            const total = count(node);
+            const total = displayedOthers.length;
             const toggle = document.createElement('button');
             toggle.type = 'button';
             toggle.className = 'bb-branch-toggle';
             toggle.setAttribute('aria-controls', children.id);
             const icon = document.createElement('i');
             icon.setAttribute('aria-hidden', 'true');
-            toggle.append(icon, document.createTextNode(`${total} ${total === 1 ? 'branch' : 'branches'}`));
+            toggle.append(icon, document.createTextNode(`${total} other ${total === 1 ? 'chat' : 'chats'}`));
             const setOpen = open => {
                 children.hidden = !open;
                 toggle.setAttribute('aria-expanded', String(open));
                 icon.className = `fa-solid fa-chevron-${open ? 'down' : 'right'}`;
             };
-            setOpen(searching || expanded.has(node.id));
+            setOpen(searching || expanded.has(node.id) || displayedOthers.some(chat => chat.id === key(context().chatId)));
             toggle.addEventListener('click', () => {
                 const open = children.hidden;
                 if (open) expanded.add(node.id); else expanded.delete(node.id);
                 setOpen(open);
             });
-            for (const child of node.children) {
-                const rendered = draw(child);
-                if (rendered) children.append(rendered);
+            for (const branch of displayedOthers) {
+                const branchGroup = document.createElement('div');
+                branchGroup.className = 'bb-group';
+                branchGroup.append(chatRow(branch, node));
+                children.append(branchGroup);
             }
             group.append(toggle, children);
         }

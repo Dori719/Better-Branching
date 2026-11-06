@@ -2,8 +2,8 @@
 export const key = value => String(value ?? '').replace(/\.jsonl$/i, '');
 
 export function buildForest(chats) {
-    const nodes = new Map(chats.map(chat => [key(chat.file_name), {
-        ...chat, id: key(chat.file_name), children: [], parent: null, message: null,
+    const nodes = new Map(chats.map((chat, order) => [key(chat.file_name), {
+        ...chat, id: key(chat.file_name), order, children: [], parent: null, message: null,
     }]));
     const links = new Map();
     for (const node of nodes.values()) {
@@ -45,27 +45,43 @@ export function buildForest(chats) {
 }
 
 export function sortForest(roots) {
-    // A family inherits its most recent descendant activity at every level.
-    const compare = (a, b) => b.activity - a.activity;
-    const visit = node => {
-        node.children.forEach(visit);
-        node.activity = Number.isFinite(node.timestamp) ? node.timestamp : -Infinity;
-        for (const child of node.children) node.activity = Math.max(node.activity, child.activity);
-        node.children.sort(compare);
-    };
-    roots.forEach(visit);
-    roots.sort(compare);
+    const timestamp = node => Number.isFinite(node.timestamp) ? node.timestamp : -Infinity;
+    const compare = (a, b) => (timestamp(b) - timestamp(a)) || a.order - b.order;
+    for (const root of roots) {
+        // Keep real parent links intact, but expose every descendant in one
+        // flat list. A branch's own last message determines its position.
+        const branches = [];
+        const pending = [...root.children];
+        while (pending.length) {
+            const branch = pending.pop();
+            branches.push(branch);
+            pending.push(...branch.children);
+        }
+        root.branches = branches.sort(compare);
+        root.activity = Math.max(timestamp(root), branches.length ? timestamp(branches[0]) : -Infinity);
+    }
+    roots.sort((a, b) => (b.activity - a.activity) || a.order - b.order);
     return roots;
 }
 
-export function visiblePaths(nodes, matches) {
+export function visibleFamilies(nodes, matches) {
     const visible = new Set();
     for (const id of matches) {
         let node = nodes.get(key(id));
-        while (node && !visible.has(node.id)) {
-            visible.add(node.id);
-            node = node.parent;
-        }
+        if (!node) continue;
+        visible.add(node.id);
+        // Searching a deep branch needs only its original parent for context,
+        // not every intermediate branch through which it was created.
+        while (node.parent) node = node.parent;
+        visible.add(node.id);
     }
     return visible;
+}
+
+export function familyView(root, previousId) {
+    const time = node => Number.isFinite(node.timestamp) ? node.timestamp : -Infinity;
+    const members = [root, ...root.branches].sort((a, b) => (time(b) - time(a)) || a.order - b.order);
+    const previous = members.find(node => node.id === previousId);
+    const representative = previous && time(previous) === time(members[0]) ? previous : members[0];
+    return { representative, others: members.filter(node => node !== representative) };
 }
