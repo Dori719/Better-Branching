@@ -1,7 +1,9 @@
-import { buildForest, key, visiblePaths } from './tree.js';
+import { buildForest, key, sortForest, visiblePaths } from './tree.js';
+import { RelationshipCache } from './relationship-cache.js';
 
 const context = () => SillyTavern.getContext();
-let list, search, observer, controller, timer;
+let list, search, observer, controller;
+const relationships = new RelationshipCache();
 let forest, scope = '', previousQuery = '';
 let nativeRows = new Map();
 let matches = new Set();
@@ -21,22 +23,30 @@ function observe() {
     observer.observe(list, { childList: true });
 }
 
+function setLoading(loading) {
+    list.classList.toggle('bb-loading', loading);
+    list.setAttribute('aria-busy', String(loading));
+}
+
 async function refresh(force) {
     const ctx = context();
     const body = {
         avatar_url: ctx.groupId ? null : ctx.characters[ctx.characterId]?.avatar,
         group_id: ctx.groupId || null,
     };
-    if (!body.avatar_url && !body.group_id) return;
+    if (!body.avatar_url && !body.group_id) { setLoading(false); return; }
     const nextScope = JSON.stringify(body);
-    if (!force && forest && nextScope === scope) { render(); return; }
+    if (!force && forest && nextScope === scope) { render(); setLoading(false); return; }
     controller?.abort();
     controller = new AbortController();
     const { signal } = controller;
+    const requestController = controller;
+    const timeout = setTimeout(() => requestController.abort(), 20000);
     scope = nextScope;
     if (!expansion.has(scope)) expansion.set(scope, new Set());
     expanded = expansion.get(scope);
-    // Keep the native list usable while relationships load, or if they fail.
+    // A previous scope's tree must never be reused during a new load.
+    forest = null;
     try {
         const chats = await post('/api/chats/search', { ...body, query: '' }, signal);
         let cursor = 0;
@@ -44,6 +54,10 @@ async function refresh(force) {
             while (cursor < chats.length) {
                 const chat = chats[cursor++];
                 chat.timestamp = ctx.timestampToMoment(chat.last_mes).valueOf();
+                // The active chat can acquire a branch link without changing
+                // its message count or rounded file size. Always reread it.
+                const cached = key(chat.file_name) === key(ctx.chatId) ? null : relationships.get(nextScope, chat);
+                if (cached) { Object.assign(chat, cached); continue; }
                 try {
                     const data = await post(body.group_id ? '/api/chats/group/get' : '/api/chats/get',
                         body.group_id ? { id: key(chat.file_name) } : { avatar_url: body.avatar_url, file_name: key(chat.file_name) }, signal);
@@ -56,6 +70,7 @@ async function refresh(force) {
                         message++;
                         for (const name of item.extra?.branches ?? []) chat.links.push({ name, message });
                     }
+                    relationships.set(nextScope, chat, { main_chat: chat.main_chat, links: chat.links });
                 } catch (error) {
                     if (signal.aborted) throw error;
                     console.warn('[Better Branching] Could not read relationships:', chat.file_name, error);
@@ -65,14 +80,16 @@ async function refresh(force) {
         if (signal.aborted) return;
         forest = buildForest(chats);
         // Preserve ST's last-message ordering among parents and siblings.
-        const compare = (a, b) => b.timestamp - a.timestamp;
-        forest.roots.sort(compare);
-        for (const node of forest.nodes.values()) node.children.sort(compare);
+        sortForest(forest.roots);
         let active = forest.nodes.get(key(ctx.chatId))?.parent;
         while (active) { expanded.add(active.id); active = active.parent; }
         render();
     } catch (error) {
         if (!signal.aborted) console.error('[Better Branching]', error);
+    } finally {
+        clearTimeout(timeout);
+        // A superseded request cannot reveal another request's unfinished list.
+        if (controller === requestController) setLoading(false);
     }
 }
 
@@ -165,14 +182,17 @@ function initialize() {
     list = document.querySelector('#select_chat_div');
     search = document.querySelector('#select_chat_search');
     if (!list || !search) return;
+    document.querySelector('#select_chat_popup').classList.add('bb-history');
     observer = new MutationObserver(() => {
         // Invalidate a pending load before ST's replacement rows are captured.
         controller?.abort();
-        clearTimeout(timer);
-        timer = setTimeout(capture, 100);
+        // Mutation observers run before paint: hide ungrouped replacement rows
+        // immediately, rather than displaying them throughout network reads.
+        setLoading(true);
+        capture();
     });
     observe();
-    if (list.children.length) capture();
+    if (list.children.length) { setLoading(true); capture(); }
 }
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initialize, { once: true });

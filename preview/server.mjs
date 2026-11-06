@@ -8,6 +8,7 @@ const files = new Map([
     ['/', ['preview/index.html', 'text/html']],
     ['/index.js', ['index.js', 'text/javascript']],
     ['/tree.js', ['tree.js', 'text/javascript']],
+    ['/relationship-cache.js', ['relationship-cache.js', 'text/javascript']],
     ['/style.css', ['style.css', 'text/css']],
     ['/native-icons.css', ['D:/SillyTavern-1.19.0/public/css/fontawesome.min.css', 'text/css']],
     ['/webfonts/fa-solid-900.woff2', ['D:/SillyTavern-1.19.0/public/webfonts/fa-solid-900.woff2', 'font/woff2']],

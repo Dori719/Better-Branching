@@ -2,5 +2,5 @@
     "name": "better-branching",
     "private": true,
     "type": "module",
-    "scripts": { "test": "node --test", "check": "node --check index.js && node --check tree.js" }
+    "scripts": { "test": "node --test", "check": "node --check index.js && node --check tree.js && node --check relationship-cache.js" }
 }

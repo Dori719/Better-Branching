@@ -44,20 +44,14 @@ export function buildForest(chats) {
     return { nodes, roots: [...nodes.values()].filter(node => !node.parent) };
 }
 
-export function sortForest(roots, mode = 'recent') {
+export function sortForest(roots) {
+    // Equivalent to ST's sortMoments(timestampToMoment(a.last_mes), ...).
+    // Relational comparisons also preserve ST's ties for invalid dates.
+    const compare = (a, b) => a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0;
     const visit = node => {
-        node.activity = Number(node.timestamp) || 0;
-        node.descendants = 0;
-        for (const child of node.children) {
-            visit(child);
-            node.activity = Math.max(node.activity, child.activity);
-            node.descendants += 1 + child.descendants;
-        }
         node.children.sort(compare);
+        node.children.forEach(visit);
     };
-    const compare = (a, b) => mode === 'name'
-        ? a.id.localeCompare(b.id, undefined, { numeric: true })
-        : b.activity - a.activity || a.id.localeCompare(b.id);
     roots.forEach(visit);
     roots.sort(compare);
     return roots;

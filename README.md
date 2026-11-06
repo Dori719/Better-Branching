@@ -12,7 +12,7 @@ Copy this folder into your active SillyTavern installation at:
 public/scripts/extensions/third-party/Better-Branching/
 ```
 
-The runtime needs `manifest.json`, `index.js`, `tree.js`, and `style.css`. Reload SillyTavern and open its chat history popup. This project does not install itself or modify the reference installation.
+The runtime needs `manifest.json`, `index.js`, `tree.js`, `relationship-cache.js`, and `style.css`. Reload SillyTavern and open its chat history popup. This project does not install itself or modify the reference installation.
 
 ## Behavior
 
@@ -24,7 +24,7 @@ The runtime needs `manifest.json`, `index.js`, `tree.js`, and `style.css`. Reloa
 - Current-chat ancestors expand when opening history; expansion is remembered for this browser session.
 - Missing or ambiguous parent links leave the chat accessible as an ordinary top-level row.
 
-Relationships use `chat_metadata.main_chat` and source-message `extra.branches`, never filename patterns. Checkpoints with the same parent metadata can also appear as connected chats. Opening history reads chat metadata with at most four concurrent requests because the search endpoint omits it. The native list remains usable while these reads run, and remains available if loading fails. No chat data is changed by grouping.
+Relationships use `chat_metadata.main_chat` and source-message `extra.branches`, never filename patterns. Checkpoints with the same parent metadata can also appear as connected chats. Opening history reads chat metadata with at most four concurrent requests because the search endpoint omits it. A bounded session cache reuses relationship summaries when the last-message date, message count, and file size are unchanged. The active chat is always reread to pick up new branch links. Message bodies are not cached. First loads show “Loading chat history…” instead of flashing the ungrouped list. Failed or timed-out loads reveal the native list again. No chat data is changed by grouping.
 
 ## Development preview
 

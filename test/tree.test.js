@@ -27,18 +27,25 @@ test('missing parents and cycles keep every chat reachable exactly once', () => 
     assert.equal(roots.find(node => node.id === 'Lost').warning, 'Parent unavailable');
 });
 
-test('recent activity sorts families and siblings without flattening descendants', () => {
+test('native recency orders parents and siblings by their own last message', () => {
     const { roots } = buildForest([
         { file_name: 'Old', timestamp: 1 }, { file_name: 'Other', timestamp: 50 },
         { file_name: 'Active', main_chat: 'Old', timestamp: 100 },
         { file_name: 'Earlier', main_chat: 'Old', timestamp: 20 },
     ]);
     sortForest(roots);
-    assert.equal(roots[0].id, 'Old');
-    assert.equal(roots[0].descendants, 2);
-    assert.deepEqual(roots[0].children.map(node => node.id), ['Active', 'Earlier']);
-    sortForest(roots, 'name');
-    assert.deepEqual(roots.map(node => node.id), ['Old', 'Other']);
+    assert.deepEqual(roots.map(node => node.id), ['Other', 'Old']);
+    assert.deepEqual(roots[1].children.map(node => node.id), ['Active', 'Earlier']);
+});
+
+test('equal and invalid dates preserve input order like SillyTavern', () => {
+    const { roots } = buildForest([
+        { file_name: 'Z', timestamp: 50 },
+        { file_name: 'A', timestamp: 50 },
+        { file_name: 'Unknown', timestamp: NaN },
+    ]);
+    sortForest(roots);
+    assert.deepEqual(roots.map(node => node.id), ['Z', 'A', 'Unknown']);
 });
 
 test('unambiguous source links recover renamed parents; ambiguous copies do not', () => {
