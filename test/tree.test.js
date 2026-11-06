@@ -27,15 +27,29 @@ test('missing parents and cycles keep every chat reachable exactly once', () => 
     assert.equal(roots.find(node => node.id === 'Lost').warning, 'Parent unavailable');
 });
 
-test('native recency orders parents and siblings by their own last message', () => {
+test('recent descendants promote their family ahead of newer parent chats', () => {
     const { roots } = buildForest([
         { file_name: 'Old', timestamp: 1 }, { file_name: 'Other', timestamp: 50 },
         { file_name: 'Active', main_chat: 'Old', timestamp: 100 },
         { file_name: 'Earlier', main_chat: 'Old', timestamp: 20 },
     ]);
     sortForest(roots);
-    assert.deepEqual(roots.map(node => node.id), ['Other', 'Old']);
-    assert.deepEqual(roots[1].children.map(node => node.id), ['Active', 'Earlier']);
+    assert.deepEqual(roots.map(node => node.id), ['Old', 'Other']);
+    assert.deepEqual(roots[0].children.map(node => node.id), ['Active', 'Earlier']);
+});
+
+test('deep branch activity promotes every ancestor and sorts sibling subtrees', () => {
+    const { roots } = buildForest([
+        { file_name: 'Parent', timestamp: 1 },
+        { file_name: 'Other', timestamp: 90 },
+        { file_name: 'Branch', main_chat: 'Parent', timestamp: 2 },
+        { file_name: 'Sibling', main_chat: 'Parent', timestamp: 80 },
+        { file_name: 'Deep', main_chat: 'Branch', timestamp: 100 },
+    ]);
+    sortForest(roots);
+    assert.equal(roots[0].id, 'Parent');
+    assert.equal(roots[0].children[0].id, 'Branch');
+    assert.equal(roots[0].activity, 100);
 });
 
 test('equal and invalid dates preserve input order like SillyTavern', () => {

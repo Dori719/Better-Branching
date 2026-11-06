@@ -45,12 +45,13 @@ export function buildForest(chats) {
 }
 
 export function sortForest(roots) {
-    // Equivalent to ST's sortMoments(timestampToMoment(a.last_mes), ...).
-    // Relational comparisons also preserve ST's ties for invalid dates.
-    const compare = (a, b) => a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0;
+    // A family inherits its most recent descendant activity at every level.
+    const compare = (a, b) => b.activity - a.activity;
     const visit = node => {
-        node.children.sort(compare);
         node.children.forEach(visit);
+        node.activity = Number.isFinite(node.timestamp) ? node.timestamp : -Infinity;
+        for (const child of node.children) node.activity = Math.max(node.activity, child.activity);
+        node.children.sort(compare);
     };
     roots.forEach(visit);
     roots.sort(compare);

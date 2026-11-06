@@ -20,11 +20,11 @@ The runtime needs `manifest.json`, `index.js`, `tree.js`, `relationship-cache.js
 - Click the branch bar to expand or collapse connected chats.
 - Branches of branches nest underneath their parent.
 - Search uses SillyTavern's results and reveals the matching ancestry.
-- Parents and siblings use their own last-message dates for ordering.
+- Families sort by their most recent message anywhere in the subtree. A recent branch promotes its parent and all ancestors; sibling subtrees follow the same rule.
 - Current-chat ancestors expand when opening history; expansion is remembered for this browser session.
 - Missing or ambiguous parent links leave the chat accessible as an ordinary top-level row.
 
-Relationships use `chat_metadata.main_chat` and source-message `extra.branches`, never filename patterns. Checkpoints with the same parent metadata can also appear as connected chats. Opening history reads chat metadata with at most four concurrent requests because the search endpoint omits it. A bounded session cache reuses relationship summaries when the last-message date, message count, and file size are unchanged. The active chat is always reread to pick up new branch links. Message bodies are not cached. First loads show “Loading chat history…” instead of flashing the ungrouped list. Failed or timed-out loads reveal the native list again. No chat data is changed by grouping.
+Relationships use `chat_metadata.main_chat` and source-message `extra.branches`, never filename patterns. Checkpoints with the same parent metadata can also appear as connected chats. The extension renders styled chat containers immediately from SillyTavern's rows and groups known relationships before paint. There is no blocking loading state. Uncached relationships are resolved in the background with at most four concurrent requests; on a first visit, previously unknown branches join their parents when that scan finishes. A bounded session cache reuses unchanged relationship summaries. The active chat is reread to pick up new branch links. Message bodies are not cached. Failed reads leave the displayed chats usable. No chat data is changed by grouping.
 
 ## Development preview
 

@@ -4,6 +4,7 @@ import { RelationshipCache } from './relationship-cache.js';
 const context = () => SillyTavern.getContext();
 let list, search, observer, controller;
 const relationships = new RelationshipCache();
+const summaries = new Map();
 let forest, scope = '', previousQuery = '';
 let nativeRows = new Map();
 let matches = new Set();
@@ -23,9 +24,35 @@ function observe() {
     observer.observe(list, { childList: true });
 }
 
-function setLoading(loading) {
-    list.classList.toggle('bb-loading', loading);
-    list.setAttribute('aria-busy', String(loading));
+function scopeBody() {
+    const ctx = context();
+    return { avatar_url: ctx.groupId ? null : ctx.characters[ctx.characterId]?.avatar, group_id: ctx.groupId || null };
+}
+
+function showAvailableChats() {
+    scope = JSON.stringify(scopeBody());
+    if (!expansion.has(scope)) expansion.set(scope, new Set());
+    expanded = expansion.get(scope);
+    const previous = summaries.get(scope) ?? new Map();
+    const chats = search.value.trim() ? new Map(previous) : new Map();
+    let rank = nativeRows.size;
+    for (const [id, row] of nativeRows) {
+        const old = previous.get(id);
+        const date = row.querySelector('.chat_messages_date')?.textContent;
+        const parsed = context().timestampToMoment(date).valueOf();
+        const unchangedDate = old && context().timestampToMoment(old.last_mes).format('lll') === date;
+        chats.set(id, {
+            ...old, file_name: id,
+            timestamp: unchangedDate ? old.timestamp : Number.isFinite(parsed) ? parsed : old?.timestamp ?? rank,
+            preview_message: row.querySelector('.select_chat_block_mes')?.textContent ?? '',
+        });
+        rank--;
+    }
+    forest = buildForest([...chats.values()]);
+    sortForest(forest.roots);
+    let active = forest.nodes.get(key(context().chatId))?.parent;
+    while (active) { expanded.add(active.id); active = active.parent; }
+    render();
 }
 
 async function refresh(force) {
@@ -34,9 +61,9 @@ async function refresh(force) {
         avatar_url: ctx.groupId ? null : ctx.characters[ctx.characterId]?.avatar,
         group_id: ctx.groupId || null,
     };
-    if (!body.avatar_url && !body.group_id) { setLoading(false); return; }
+    if (!body.avatar_url && !body.group_id) return;
     const nextScope = JSON.stringify(body);
-    if (!force && forest && nextScope === scope) { render(); setLoading(false); return; }
+    if (!force && summaries.has(nextScope)) return;
     controller?.abort();
     controller = new AbortController();
     const { signal } = controller;
@@ -45,8 +72,7 @@ async function refresh(force) {
     scope = nextScope;
     if (!expansion.has(scope)) expansion.set(scope, new Set());
     expanded = expansion.get(scope);
-    // A previous scope's tree must never be reused during a new load.
-    forest = null;
+    // The list is already rendered. Network work only enriches relationships.
     try {
         const chats = await post('/api/chats/search', { ...body, query: '' }, signal);
         let cursor = 0;
@@ -78,8 +104,11 @@ async function refresh(force) {
             }
         }));
         if (signal.aborted) return;
+        summaries.set(nextScope, new Map(chats.map(chat => [key(chat.file_name), chat])));
+        // Bound retained summaries to recently visited characters/groups.
+        if (summaries.size > 10) summaries.delete(summaries.keys().next().value);
         forest = buildForest(chats);
-        // Preserve ST's last-message ordering among parents and siblings.
+        // Recent descendant activity promotes the entire ancestor path.
         sortForest(forest.roots);
         let active = forest.nodes.get(key(ctx.chatId))?.parent;
         while (active) { expanded.add(active.id); active = active.parent; }
@@ -88,8 +117,6 @@ async function refresh(force) {
         if (!signal.aborted) console.error('[Better Branching]', error);
     } finally {
         clearTimeout(timeout);
-        // A superseded request cannot reveal another request's unfinished list.
-        if (controller === requestController) setLoading(false);
     }
 }
 
@@ -175,6 +202,7 @@ function capture() {
     const query = search.value.trim();
     const changed = query !== previousQuery;
     previousQuery = query;
+    showAvailableChats();
     refresh(!query && !changed);
 }
 
@@ -186,13 +214,11 @@ function initialize() {
     observer = new MutationObserver(() => {
         // Invalidate a pending load before ST's replacement rows are captured.
         controller?.abort();
-        // Mutation observers run before paint: hide ungrouped replacement rows
-        // immediately, rather than displaying them throughout network reads.
-        setLoading(true);
+        // Group known relationships before paint, without waiting for reads.
         capture();
     });
     observe();
-    if (list.children.length) { setLoading(true); capture(); }
+    if (list.children.length) capture();
 }
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initialize, { once: true });
